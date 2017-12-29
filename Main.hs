@@ -100,14 +100,45 @@ stretchPath (v:w:ws) = 2*#v : midway (2*#v) (2*#w) : stretchPath (w:ws)
 
 
 -- Producing code for a-frame:
+
 main :: IO ()
-main = putStrLn (unlines ls)
+main = do
+  header <- readFile "header.html"
+  footer <- readFile "footer.html"
+  writeFile "out.html" $
+       header
+    ++ spheresCode dist (dist/6) "#FF0000" path
+    ++ cylindersCode dist (dist/8) "#0000FF" path
+    ++ footer
   where
-    ls = [ "<a-sphere position=\""++coordsString v++"\" radius=\""++show (dist/2)++"\" "
-           ++"color=\"#FF0000\" shadow></a-sphere>"
-         | v <- path ]
-    coordsString :: Vector -> String
-    coordsString (V xs) = intercalate " " $
-      map (show . (dist*) . fromIntegral) xs
-    dist = 0.2
-    path = stretchPath $ approx (schemeNd 3) 3
+    dist = 0.5
+    path = approx (schemeNd 3) 3
+
+spheresCode :: Float -> Float -> String -> [Vector] -> String
+spheresCode dist radius color =
+  unlines . map (\v ->
+    "<a-sphere position=\""++coordsString dist v++"\" radius=\""++show radius++"\" "
+    ++"color=\""++color++"\" shadow></a-sphere>" )
+
+cylindersCode :: Float -> Float -> String -> Path -> String
+cylindersCode dist radius color =
+  unlines . map (\(v, w) ->
+    "<a-cylinder position=\""++coordsStringMidway dist v w++"\" radius=\""++show radius++"\" "
+    ++"height=\""++show dist++"\" rotation=\""++unitVectorToRotationString (w#-#v)
+    ++"\" color=\""++color++"\" shadow></a-cylinder>" )
+  . (\vs -> zip vs (tail vs))
+
+unitVectorToRotationString :: Vector -> String
+unitVectorToRotationString (V xs) = case map abs xs of
+  [1, 0, 0]  -> " 0 0 90"
+  [0, 1, 0]  -> " 0 0  0"
+  [0, 0, 1]  -> "90 0  0"
+
+coordsString :: Float -> Vector -> String
+coordsString dist (V xs) = intercalate " " $
+  [ show (dist * fromIntegral x) | x <- xs ]
+
+coordsStringMidway :: Float -> Vector -> Vector -> String
+coordsStringMidway dist (V xs) (V ys) = intercalate " " $
+  [ show (0.5*dist*(fromIntegral x + fromIntegral y))
+  | (x, y) <- zip xs ys ]
