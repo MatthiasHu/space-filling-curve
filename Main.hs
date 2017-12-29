@@ -1,41 +1,63 @@
 module Main where
 
-import Data.List (nub)
+import Control.Applicative (liftA2)
 
 
 type Scalar = Integer
-type Vertex1d = Scalar
-type Cube1d = Scalar
 
-type Vector = [Scalar]
-type Vertex = [Scalar]
-type Cube = [Scalar]
+newtype Vector = V [Scalar]
+  deriving (Eq, Ord, Show)
 
-isVertexOf :: Vertex -> Cube -> Bool
-isVertexOf v c = all id $ zipWith isVertexOf1d v c
+(#+#) :: Vector -> Vector -> Vector
+(V xs) #+# (V ys) = V $ zipWith (+) xs ys
 
-isVertexOf1d :: Vertex1d -> Cube1d -> Bool
-isVertexOf1d v c = v `elem` [c, c+1]
+(#-#) :: Vector -> Vector -> Vector
+(V xs) #-# (V ys) = V $ zipWith (-) xs ys
+
+(*#) :: Scalar -> Vector -> Vector
+x *# (V ys) = V $ (x*) <$> ys
 
 isUnitVector :: Vector -> Bool
-isUnitVector v = 
-     length [x | x <- v, x == 0] == length v - 1
-  && length [x | x <- v, abs x == 1] == 1
+isUnitVector (V xs) =
+     length [x | x <- xs, x == 0] == length xs - 1
+  && length [x | x <- xs, abs x == 1] == 1
 
-data PathScheme = PathScheme
-  { vertices :: [Vertex]
-  , cubes    :: [Cube]
-  }
+type Rotation = [Vector] -- orthogonal Matrix, column major
 
-isValidPathScheme :: PathScheme -> Bool
-isValidPathScheme (PathScheme vs cs) =
-     (all isUnitVector $ zipWith (zipWith (-)) vs (tail vs))
-  && length vs == length cs + 1
-  && all id (zipWith isVertexOf vs cs)
-  && all id (zipWith isVertexOf (tail vs) cs)
+rotate :: Rotation -> Vector -> Vector
+rotate rot (V xs) = foldl1 (#+#) $ zipWith (*#) xs rot
 
-isInjectivePathScheme :: PathScheme -> Bool
-isInjectivePathScheme (PathScheme vs cs) = nub cs == cs
+rotateInCube ::Scalar -> Rotation ->  Vector -> Vector
+rotateInCube size rot (V xs) = foldl1 (#+#) $
+  zipWith (\x (V ys) -> V (map (f x) ys)) xs rot
+  where
+    f x 0 = 0
+    f x 1 = x
+    f x (-1) = size - 1 - x
+
+type PathScheme = [(Vector, Rotation)]
+
+scheme2d :: PathScheme
+scheme2d =
+  [ (V [0, 0], [V [0, 1], V [1, 0]])
+  , (V [0, 1], [V [1, 0], V [0, 1]])
+  , (V [1, 1], [V [1, 0], V [0, 1]])
+  , (V [1, 0], [V [0, -1], V [-1, 0]])
+  ]
+
+
+type Path = [Vector]
+
+isPath :: [Vector] -> Bool
+isPath vs = all isUnitVector (zipWith (#-#) vs (tail vs))
+
+-- Walks from [0, 0, ...] to [2^n-1, 0, ...].
+approx :: PathScheme -> Int -> Path
+approx _ 0 = return $ V (repeat 0)
+approx scheme n = do
+  (trans, rot) <- scheme
+  map (((#+#) ((2^(n-1)) *# trans)) . rotateInCube (2^(n-1)) rot)
+    (approx scheme (n-1))
 
 
 main :: IO ()
