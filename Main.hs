@@ -45,6 +45,9 @@ scheme2d =
   , (V [1, 0], [V [0, -1], V [-1, 0]])
   ]
 
+scheme0d :: PathScheme
+scheme0d = [ (V [], []) ]
+
 
 type Path = [Vector]
 
@@ -58,6 +61,30 @@ approx scheme n = do
   (trans, rot) <- scheme
   map (((#+#) ((2^(n-1)) *# trans)) . rotateInCube (2^(n-1)) rot)
     (approx scheme (n-1))
+
+
+-- Construct an (n+1)-dimensional path scheme from a n-dimensional one.
+-- (Produces rotations with infinite columns,
+-- but that does not matter for approx.)
+oneUp :: PathScheme -> PathScheme
+oneUp scheme = left1 ++ [left2] ++ [right1] ++ right2
+  where
+    left1, right2 :: [(Vector, Rotation)]
+    left2, right1 :: (Vector, Rotation)
+    left1  = [ (oneUpV  t, oneUpR' r) | (t, r) <- init scheme ]
+    left2  = let (t, r) = last scheme in (oneUpV t, oneUpR r)
+    right1 = let (t, r) = last scheme in (oneUpV' t, oneUpR r)
+    right2 = [ (oneUpV' t, doubleFlipR (oneUpR' r))
+             | (t, r) <- reverse (init scheme) ]
+    oneUpV  (V xs) = V (0:xs)
+    oneUpV' (V xs) = V (1:xs)
+    oneUpR :: Rotation -> Rotation
+    oneUpR  vs = e1 : map oneUpV vs
+    oneUpR' vs = map oneUpV vs ++ [e1]  -- here is a choice
+    -- Flip first column and first row:
+    doubleFlipR (v:vs) = map flipCol $ ((-1)*#v):vs
+    flipCol (V (x:xs)) = V ((-1)*x:xs)
+    e1 = V (1 : repeat 0)
 
 
 main :: IO ()
