@@ -1,6 +1,7 @@
 module Main where
 
 import Control.Applicative (liftA2)
+import Data.List (intercalate)
 
 
 type Scalar = Integer
@@ -48,6 +49,10 @@ scheme2d =
 scheme0d :: PathScheme
 scheme0d = [ (V [], []) ]
 
+schemeNd :: Int -> PathScheme
+schemeNd 0 = scheme0d
+schemeNd n = oneUp $ schemeNd (n-1)
+
 
 type Path = [Vector]
 
@@ -86,6 +91,23 @@ oneUp scheme = left1 ++ [left2] ++ [right1] ++ right2
     flipCol (V (x:xs)) = V ((-1)*x:xs)
     e1 = V (1 : repeat 0)
 
+stretchPath :: Path -> Path
+stretchPath [] = []
+stretchPath [v] = [2*#v]
+stretchPath (v:w:ws) = 2*#v : midway (2*#v) (2*#w) : stretchPath (w:ws)
+  where
+    midway (V xs) (V ys) = V $ zipWith (\x y -> (x+y) `div` 2) xs ys
 
+
+-- Producing code for a-frame:
 main :: IO ()
-main = putStrLn "Hello, Haskell!"
+main = putStrLn (unlines ls)
+  where
+    ls = [ "<a-sphere position=\""++coordsString v++"\" radius=\""++show (dist/2)++"\" "
+           ++"color=\"#FF0000\" shadow></a-sphere>"
+         | v <- path ]
+    coordsString :: Vector -> String
+    coordsString (V xs) = intercalate " " $
+      map (show . (dist*) . fromIntegral) xs
+    dist = 0.2
+    path = stretchPath $ approx (schemeNd 3) 3
